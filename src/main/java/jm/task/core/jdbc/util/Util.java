@@ -13,39 +13,52 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 
 public class Util {
 
-    private static SessionFactory sessionFactory;
     private static final String URL_USERDB = "jdbc:mysql://localhost:3306/usersdb";
     private static final String NAME_USER = "root";
     private static final String PASSWORD = "GfdtkCjatby5555555555";
     private static final String DIALECT = "org.hibernate.dialect.MySQL5Dialect";
-    private static final String DRIVER = "com.mysql.cj.jdbc.Driver";
+    private static final String DRIVER = "com.mysql.cj.jdbc.Driver"; // for old java (< 8 version)
     private static final String SHOW_SQL = "true";
     private static final String CURRENT_SESSION_CONTEXT_CLASS = "thread";
     private static final String HBM2DDL_AUTO = "create-drop";
+    private static final Logger UTIL_LOGGER = LogManager.getLogger(Util.class);
 
     private static Connection connection;
+    private static SessionFactory sessionFactory;
+
+
+    public static Logger getUtilLogger() {   //Just in case
+        return UTIL_LOGGER;
+    }
 
     // Подключение через JDBC
     public static Connection getConnection() {
         connection = null;
         try {
+            Class.forName(DRIVER); // for old java (< 8 version)
             connection = DriverManager.getConnection(URL_USERDB, NAME_USER, PASSWORD);
-        } catch (SQLException e) {
-            e.getStackTrace();
-        } catch (Exception e) {
-            e.getStackTrace();
+        } catch (SQLException sqlException) {
+            UTIL_LOGGER.log(Level.ERROR,"Problem with connection", sqlException);
+        } catch (ClassNotFoundException classNotFoundException) {
+            UTIL_LOGGER.log(Level.ERROR,"Driver not found", classNotFoundException);
         }
         return connection;
     }
 
     public static void closeConnection() {
-        try {
-            connection.close();
-        } catch (SQLException e) {
-            e.getStackTrace();
+        if (connection != null) {
+            try {
+                connection.close();
+            } catch (SQLException sqlException) {
+                UTIL_LOGGER.log(Level.ERROR,"Problem closing database connection", sqlException);
+            }
         }
     }
 
@@ -75,18 +88,22 @@ public class Util {
                         .applySettings(configuration.getProperties()).build();
 
                 sessionFactory = configuration.buildSessionFactory(serviceRegistry);
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (Throwable ex) {
+                UTIL_LOGGER.log(Level.ERROR,"Initial SessionFactory creation failed", ex);
+                throw new ExceptionInInitializerError(ex);
             }
         }
         return sessionFactory;
     }
 
     public static void closeSessionFactory() {
-        try {
-            sessionFactory.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (sessionFactory != null) {
+            try {
+                sessionFactory.close();
+            } catch (Throwable ex) {
+                UTIL_LOGGER.log(Level.ERROR,"Error closing SessionFactory if connection to database is lost", ex);
+                throw new ExceptionInInitializerError(ex);
+            }
         }
     }
 }
